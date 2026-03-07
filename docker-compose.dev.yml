@@ -1,0 +1,115 @@
+services:
+  # Kafka-compatible broker (single binary, lightweight)
+  redpanda:
+    image: redpandadata/redpanda:latest
+    command:
+      - redpanda start
+      - --overprovisioned
+      - --smp 1
+      - --memory 512M
+      - --reserve-memory 0M
+      - --node-id 0
+      - --check=false
+      - --kafka-addr PLAINTEXT://0.0.0.0:29092,OUTSIDE://0.0.0.0:9092
+      - --advertise-kafka-addr PLAINTEXT://redpanda:29092,OUTSIDE://localhost:9092
+    ports:
+      - "9092:9092"
+      - "9644:9644"
+    healthcheck:
+      test: ["CMD", "rpk", "cluster", "health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Kafka Live Debug UI
+  kafka-ui:
+    build: .
+    ports:
+      - "8899:8080"
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:29092
+      LOG_LEVEL: DEBUG
+      SAMPLING_ENABLED: "true"
+      SHOW_PRODUCERS: "false"
+      POLL_INTERVAL_MS: "2000"
+      LAG_WARN_THRESHOLD: "100"
+    depends_on:
+      redpanda:
+        condition: service_healthy
+
+  # --- Example Services ---
+
+  # Order Service: produces order events
+  order-service:
+    image: python:3.12-slim
+    command: >
+      bash -c "pip install kafka-python-ng --quiet &&
+      python /app/order_producer.py"
+    volumes:
+      - ./examples:/app
+    environment:
+      KAFKA_BOOTSTRAP: redpanda:29092
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Payment Service: consumes orders, produces payments
+  payment-service:
+    image: python:3.12-slim
+    command: >
+      bash -c "pip install kafka-python-ng --quiet &&
+      python /app/payment_consumer.py"
+    volumes:
+      - ./examples:/app
+    environment:
+      KAFKA_BOOTSTRAP: redpanda:29092
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Notification Service: consumes payments
+  notification-service:
+    image: python:3.12-slim
+    command: >
+      bash -c "pip install kafka-python-ng --quiet &&
+      python /app/notification_consumer.py"
+    volumes:
+      - ./examples:/app
+    environment:
+      KAFKA_BOOTSTRAP: redpanda:29092
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Analytics Service: consumes from multiple topics
+  analytics-service:
+    image: python:3.12-slim
+    command: >
+      bash -c "pip install kafka-python-ng --quiet &&
+      python /app/analytics_consumer.py"
+    volumes:
+      - ./examples:/app
+    environment:
+      KAFKA_BOOTSTRAP: redpanda:29092
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Inventory Service: produces inventory events
+  inventory-service:
+    image: python:3.12-slim
+    command: >
+      bash -c "pip install kafka-python-ng --quiet &&
+      python /app/inventory_producer.py"
+    volumes:
+      - ./examples:/app
+    environment:
+      KAFKA_BOOTSTRAP: redpanda:29092
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    restart: unless-stopped

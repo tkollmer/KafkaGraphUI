@@ -1,0 +1,141 @@
+@import "tailwindcss";
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  overflow: hidden;
+  background: #030712;
+}
+
+/* ── Edge flow animations (CSS only, no JS runtime cost) ── */
+
+@keyframes flow-produce {
+  0% { stroke-dashoffset: 28; }
+  100% { stroke-dashoffset: 0; }
+}
+@keyframes flow-consume {
+  0% { stroke-dashoffset: 28; }
+  100% { stroke-dashoffset: 0; }
+}
+
+.edge-flow-produce {
+  animation: flow-produce 1s linear infinite;
+}
+.edge-flow-consume {
+  animation: flow-consume 1.2s linear infinite;
+}
+
+/* ── Consumer lag warning pulse ── */
+
+@keyframes lag-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  50% { box-shadow: 0 0 24px 8px rgba(239, 68, 68, 0.2); }
+}
+.lag-pulse {
+  animation: lag-pulse 2s ease-in-out infinite;
+}
+
+/* ── Activity dot ping ── */
+
+@keyframes ping {
+  75%, 100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+.animate-ping {
+  animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* ── React Flow overrides ── */
+
+.react-flow__background {
+  background: transparent !important;
+}
+
+.react-flow__pane {
+  cursor: grab;
+}
+.react-flow__pane:active {
+  cursor: grabbing;
+}
+
+/* Controls */
+.react-flow__controls {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+.react-flow__controls button {
+  background: rgba(15, 23, 42, 0.9) !important;
+  backdrop-filter: blur(16px) !important;
+  border: 1px solid rgba(51, 65, 85, 0.5) !important;
+  border-radius: 12px !important;
+  color: #94a3b8 !important;
+  width: 36px !important;
+  height: 36px !important;
+  transition: all 0.2s !important;
+  margin-bottom: 4px !important;
+}
+.react-flow__controls button:hover {
+  background: rgba(30, 41, 59, 0.9) !important;
+  color: #e2e8f0 !important;
+  border-color: rgba(99, 102, 241, 0.4) !important;
+}
+
+/* Minimap */
+.react-flow__minimap {
+  background: rgba(2, 6, 23, 0.9) !important;
+  backdrop-filter: blur(16px) !important;
+  border: 1px solid rgba(51, 65, 85, 0.4) !important;
+  border-radius: 16px !important;
+  overflow: hidden !important;
+}
+
+/* Selection */
+.react-flow__node.selected > div {
+  transition: all 0.2s ease;
+}
+
+/* Edges */
+.react-flow__edge-path {
+  transition: stroke 0.3s ease, stroke-width 0.3s ease;
+}
+
+/* ── Scrollbar styling ── */
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(51, 65, 85, 0.5);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(71, 85, 105, 0.7);
+}
+
+/* ── Line clamp utility ── */
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ── Grid dot pattern for background ── */
+
+.bg-grid-pattern {
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(99, 102, 241, 0.08) 1px, transparent 0);
+  background-size: 32px 32px;
+}

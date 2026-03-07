@@ -1,0 +1,6 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+kafka-python-ng==2.2.3
+prometheus-client==0.21.1
+python-json-logger==3.2.1
+websockets==14.1

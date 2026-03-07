@@ -1,0 +1,17 @@
+services:
+  kafka-debug-flow:
+    image: ghcr.io/YOUR_USERNAME/kafka-debug-flow:latest
+    # Or build from source:
+    # build: .
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: "your-kafka-broker:9092"
+      # KAFKA_SASL_ENABLED: "true"
+      # KAFKA_SASL_USERNAME: ""
+      # KAFKA_SASL_PASSWORD: ""
+      # KAFKA_SSL_ENABLED: "true"
+      SAMPLING_ENABLED: "true"
+      POLL_INTERVAL_MS: "2000"
+      LAG_WARN_THRESHOLD: "1000"
+      LOG_LEVEL: "INFO"
