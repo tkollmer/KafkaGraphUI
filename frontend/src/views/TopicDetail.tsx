@@ -53,23 +53,23 @@ export function TopicDetail({ topicName, onBack }: Props) {
     { key: "partition", label: "Partition", className: "w-24 text-center" },
     { key: "leader", label: "Leader", className: "w-24 text-center" },
     { key: "replicas", label: "Replicas", render: (r: Record<string, unknown>) => (
-      <span className="font-mono text-xs">{(r.replicas as number[]).join(", ")}</span>
+      <span className="font-mono text-xs">{(r.replicas as number[])?.join(", ") || "-"}</span>
     )},
     { key: "isr", label: "ISR", render: (r: Record<string, unknown>) => (
-      <span className="font-mono text-xs">{(r.isr as number[]).join(", ")}</span>
+      <span className="font-mono text-xs">{(r.isr as number[])?.join(", ") || "-"}</span>
     )},
     { key: "endOffset", label: "End Offset", className: "w-32 text-right", render: (r: Record<string, unknown>) => (
-      <span className="font-mono">{Number(r.endOffset).toLocaleString()}</span>
+      <span className="font-mono tabular-nums">{Number(r.endOffset).toLocaleString()}</span>
     )},
   ];
 
   return (
-    <div className="p-6 flex-1 overflow-y-auto">
+    <div className="p-6 flex-1 overflow-y-auto space-y-6">
       {/* Back + Header */}
-      <div className="flex items-center gap-3 mb-6">
+      <div className="flex items-center gap-4">
         <button
           onClick={onBack}
-          className="px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-800/50 border border-slate-700/40 text-slate-400 hover:bg-slate-700/50 hover:text-slate-300 transition-all cursor-pointer"
+          className="px-3 py-2 rounded-xl text-xs font-medium bg-slate-800/50 border border-slate-700/40 text-slate-400 hover:bg-slate-700/50 hover:text-slate-300 transition-all cursor-pointer"
         >
           &larr; Back
         </button>
@@ -86,14 +86,14 @@ export function TopicDetail({ topicName, onBack }: Props) {
       ) : (
         <>
           {/* Tabs */}
-          <div className="flex gap-1 mb-6 bg-slate-900/50 rounded-xl p-1 w-fit border border-slate-800/50">
+          <div className="flex gap-1 bg-slate-900/50 rounded-xl p-1 w-fit border border-slate-800/50">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={`px-4 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                   activeTab === tab.id
-                    ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/40"
+                    ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
                     : "text-slate-400 hover:text-slate-300 border border-transparent"
                 }`}
               >
@@ -102,7 +102,7 @@ export function TopicDetail({ topicName, onBack }: Props) {
             ))}
           </div>
 
-          {/* Partitions tab */}
+          {/* Partitions */}
           {activeTab === "partitions" && selectedTopic && (
             <DataTable
               columns={partitionColumns}
@@ -112,21 +112,21 @@ export function TopicDetail({ topicName, onBack }: Props) {
             />
           )}
 
-          {/* Config tab */}
+          {/* Config */}
           {activeTab === "config" && selectedTopic && (
-            <div className="rounded-2xl border border-slate-700/50 overflow-hidden">
+            <div className="rounded-2xl border border-slate-700/40 bg-slate-900/40 overflow-hidden">
               <table className="w-full">
                 <thead>
-                  <tr className="bg-slate-800/60">
-                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-wider font-medium text-slate-400">Key</th>
-                    <th className="px-4 py-3 text-left text-[10px] uppercase tracking-wider font-medium text-slate-400">Value</th>
+                  <tr className="border-b border-slate-700/40">
+                    <th className="px-5 py-3.5 text-left text-[10px] uppercase tracking-wider font-semibold text-slate-400">Key</th>
+                    <th className="px-5 py-3.5 text-left text-[10px] uppercase tracking-wider font-semibold text-slate-400">Value</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/50">
-                  {Object.entries(selectedTopic.config).map(([k, v]) => (
-                    <tr key={k}>
-                      <td className="px-4 py-2.5 text-sm font-mono text-slate-300">{k}</td>
-                      <td className="px-4 py-2.5 text-sm font-mono text-indigo-300">{v}</td>
+                <tbody>
+                  {Object.entries(selectedTopic.config).map(([k, v], i) => (
+                    <tr key={k} className={`border-b border-slate-800/30 last:border-0 ${i % 2 === 1 ? "bg-slate-800/[0.08]" : ""}`}>
+                      <td className="px-5 py-3 text-sm font-mono text-slate-300">{k}</td>
+                      <td className="px-5 py-3 text-sm font-mono text-indigo-300">{v}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -134,16 +134,21 @@ export function TopicDetail({ topicName, onBack }: Props) {
             </div>
           )}
 
-          {/* Messages tab */}
+          {/* Messages */}
           {activeTab === "messages" && (
-            <div className="rounded-2xl border border-slate-700/50 overflow-hidden">
+            <div className="rounded-2xl border border-slate-700/40 bg-slate-900/40 overflow-hidden">
               <MessageInspector topic={topicName} onClose={() => setActiveTab("partitions")} embedded />
             </div>
           )}
 
-          {/* Produce tab */}
+          {/* Produce */}
           {activeTab === "produce" && (
-            <div className="max-w-lg space-y-4">
+            <div className="max-w-xl rounded-2xl border border-slate-700/40 bg-slate-900/40 p-6 space-y-5">
+              <div>
+                <h3 className="text-sm font-semibold text-white mb-1">Send a message</h3>
+                <p className="text-xs text-slate-500">Produce a message to <span className="font-mono text-indigo-300">{topicName}</span></p>
+              </div>
+
               {produceResult && (
                 <div className={`p-3 rounded-xl border text-sm ${
                   produceResult.success
@@ -153,13 +158,14 @@ export function TopicDetail({ topicName, onBack }: Props) {
                   {produceResult.message}
                 </div>
               )}
+
               <div>
                 <label className="text-[10px] uppercase tracking-wider text-slate-400 font-medium">Key (optional)</label>
                 <input
                   type="text"
                   value={produceForm.key}
                   onChange={(e) => setProduceForm({ ...produceForm, key: e.target.value })}
-                  className="w-full mt-1 bg-slate-800/80 rounded-xl px-3 py-2 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500/50"
+                  className="w-full mt-1.5 bg-slate-800/80 rounded-xl px-3.5 py-2.5 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500/50"
                   placeholder="message-key"
                 />
               </div>
@@ -168,7 +174,7 @@ export function TopicDetail({ topicName, onBack }: Props) {
                 <textarea
                   value={produceForm.value}
                   onChange={(e) => setProduceForm({ ...produceForm, value: e.target.value })}
-                  className="w-full mt-1 bg-slate-800/80 rounded-xl px-3 py-2 border border-slate-700/50 text-sm text-white font-mono placeholder-slate-500 focus:outline-none focus:border-indigo-500/50 min-h-[120px]"
+                  className="w-full mt-1.5 bg-slate-800/80 rounded-xl px-3.5 py-2.5 border border-slate-700/50 text-sm text-white font-mono placeholder-slate-500 focus:outline-none focus:border-indigo-500/50 min-h-[120px] resize-y"
                   placeholder='{"event": "test"}'
                 />
               </div>
@@ -178,14 +184,14 @@ export function TopicDetail({ topicName, onBack }: Props) {
                   type="text"
                   value={produceForm.headers}
                   onChange={(e) => setProduceForm({ ...produceForm, headers: e.target.value })}
-                  className="w-full mt-1 bg-slate-800/80 rounded-xl px-3 py-2 border border-slate-700/50 text-sm text-white font-mono placeholder-slate-500 focus:outline-none focus:border-indigo-500/50"
+                  className="w-full mt-1.5 bg-slate-800/80 rounded-xl px-3.5 py-2.5 border border-slate-700/50 text-sm text-white font-mono placeholder-slate-500 focus:outline-none focus:border-indigo-500/50"
                   placeholder='{"content-type": "application/json"}'
                 />
               </div>
               <button
                 onClick={handleProduce}
                 disabled={producing || !produceForm.value.trim()}
-                className="px-4 py-2 rounded-xl text-sm font-medium bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 hover:bg-indigo-500/30 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                className="px-5 py-2.5 rounded-xl text-sm font-medium bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 hover:bg-indigo-500/25 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {producing ? "Sending..." : "Send Message"}
               </button>

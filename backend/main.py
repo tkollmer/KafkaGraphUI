@@ -285,9 +285,36 @@ async def websocket_graph(websocket: WebSocket):
 
 # Serve React frontend static files (in production)
 import os
+from fastapi.responses import FileResponse
+
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 if os.path.isdir(static_dir):
-    app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
+    # Mount assets at /assets for hashed JS/CSS files
+    assets_dir = os.path.join(static_dir, "assets")
+    if os.path.isdir(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+    # Serve other static files (favicon, etc.)
+    @app.get("/vite.svg")
+    async def vite_svg():
+        fpath = os.path.join(static_dir, "vite.svg")
+        if os.path.isfile(fpath):
+            return FileResponse(fpath)
+        return Response(status_code=404)
+
+    # SPA catch-all: serve index.html for any non-API/non-asset path
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        # Try to serve a static file if it exists (with path traversal protection)
+        if full_path and ".." not in full_path:
+            file_path = os.path.realpath(os.path.join(static_dir, full_path))
+            if file_path.startswith(os.path.realpath(static_dir)) and os.path.isfile(file_path):
+                return FileResponse(file_path)
+        # Otherwise serve index.html for SPA routing
+        index_path = os.path.join(static_dir, "index.html")
+        if os.path.isfile(index_path):
+            return FileResponse(index_path, media_type="text/html")
+        return Response(content="Not found", status_code=404)
 
 
 if __name__ == "__main__":

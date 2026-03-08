@@ -49,14 +49,11 @@ interface GraphState {
   inspectorTopic: string | null;
   searchQuery: string;
   hideSystemTopics: boolean;
-  darkMode: boolean;
-
   setConnectionStatus: (s: GraphState["connectionStatus"]) => void;
   setSelectedNode: (id: string | null) => void;
   setInspectorTopic: (t: string | null) => void;
   setSearchQuery: (q: string) => void;
   setHideSystemTopics: (v: boolean) => void;
-  setDarkMode: (v: boolean) => void;
   setConfig: (c: Partial<GraphConfig>) => void;
   applySnapshot: (msg: WsMessage) => void;
   applyDiff: (msg: WsMessage) => void;
@@ -109,10 +106,6 @@ function wsEdgeToRFEdge(e: WsEdgeChange): Edge {
   };
 }
 
-const savedDark = typeof window !== "undefined"
-  ? localStorage.getItem("kafka-ui-dark") !== "false"
-  : true;
-
 export const useGraphStore = create<GraphState>((set, get) => ({
   nodes: [],
   edges: [],
@@ -128,17 +121,12 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   inspectorTopic: null,
   searchQuery: "",
   hideSystemTopics: true,
-  darkMode: savedDark,
 
   setConnectionStatus: (s) => set({ connectionStatus: s }),
   setSelectedNode: (id) => set({ selectedNode: id }),
   setInspectorTopic: (t) => set({ inspectorTopic: t }),
   setSearchQuery: (q) => set({ searchQuery: q }),
   setHideSystemTopics: (v) => set({ hideSystemTopics: v }),
-  setDarkMode: (v) => {
-    localStorage.setItem("kafka-ui-dark", String(v));
-    set({ darkMode: v });
-  },
   setConfig: (c) => set((s) => ({ config: { ...s.config, ...c } })),
 
   applySnapshot: (msg) => {

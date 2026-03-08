@@ -16,7 +16,6 @@ import { BrokersView } from "./views/BrokersView";
 
 function AppContent() {
   const { activeView } = useNavigationStore();
-  const darkMode = useGraphStore((s) => s.darkMode);
   const { layoutNodes } = useGraphLayout();
   const { fitView } = useReactFlow();
 
@@ -41,7 +40,7 @@ function AppContent() {
   }, [fitView]);
 
   return (
-    <div className={`w-screen h-screen flex ${darkMode ? "bg-[#030712]" : "bg-slate-100"}`}>
+    <div className="w-screen h-screen flex bg-[#030712]">
       <Sidebar />
       <div className="flex-1 h-full flex flex-col overflow-hidden">
         <Toolbar onAutoLayout={handleAutoLayout} onFitView={handleFitView} />

@@ -48,19 +48,22 @@ export function TopicsView() {
     }
   };
 
+  const totalMessages = topics.reduce((s, t) => s + (t.totalMessages || 0), 0);
+  const totalPartitions = topics.reduce((s, t) => s + (t.partitions || 0), 0);
+
   const columns = [
     { key: "name", label: "Topic Name", render: (r: Record<string, unknown>) => (
-      <span className="font-mono text-indigo-300">{String(r.name)}</span>
+      <span className="font-mono text-indigo-300 font-medium">{String(r.name)}</span>
     )},
     { key: "partitions", label: "Partitions", className: "w-28 text-center" },
     { key: "replicationFactor", label: "RF", className: "w-20 text-center" },
     { key: "totalMessages", label: "Messages", className: "w-32 text-right", render: (r: Record<string, unknown>) => (
-      <span className="font-mono">{fmt(Number(r.totalMessages))}</span>
+      <span className="font-mono tabular-nums">{fmt(Number(r.totalMessages))}</span>
     )},
-    { key: "_actions", label: "", sortable: false, className: "w-20", render: (r: Record<string, unknown>) => (
+    { key: "_actions", label: "", sortable: false, className: "w-16 text-right", render: (r: Record<string, unknown>) => (
       <button
         onClick={(e) => { e.stopPropagation(); setShowDelete(String(r.name)); }}
-        className="text-xs text-red-400/60 hover:text-red-400 transition-colors cursor-pointer"
+        className="text-xs text-red-400/50 hover:text-red-400 transition-colors cursor-pointer"
       >
         Delete
       </button>
@@ -68,28 +71,37 @@ export function TopicsView() {
   ];
 
   return (
-    <div className="p-6 flex-1 overflow-y-auto">
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-6 flex-1 overflow-y-auto space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-white">Topics</h1>
-          <p className="text-sm text-slate-400 mt-1">{topics.length} topics</p>
+          <p className="text-sm text-slate-500 mt-0.5">Manage Kafka topics, inspect messages, and produce events</p>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => fetchTopics()}
-            className="px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-800/50 border border-slate-700/40 text-slate-400 hover:bg-slate-700/50 hover:text-slate-300 transition-all cursor-pointer"
+            className="px-3.5 py-2 rounded-xl text-xs font-medium bg-slate-800/50 border border-slate-700/40 text-slate-400 hover:bg-slate-700/50 hover:text-slate-300 transition-all cursor-pointer"
           >
             Refresh
           </button>
           <button
             onClick={() => setShowCreate(true)}
-            className="px-3 py-1.5 rounded-xl text-xs font-medium bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 hover:bg-indigo-500/30 transition-all cursor-pointer"
+            className="px-3.5 py-2 rounded-xl text-xs font-medium bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 hover:bg-indigo-500/25 transition-all cursor-pointer"
           >
-            Create Topic
+            + Create Topic
           </button>
         </div>
       </div>
 
+      {/* Summary cards */}
+      <div className="grid grid-cols-3 gap-3">
+        <SummaryCard label="Topics" value={String(topics.length)} color="indigo" />
+        <SummaryCard label="Total Partitions" value={String(totalPartitions)} color="slate" />
+        <SummaryCard label="Total Messages" value={fmt(totalMessages)} color="emerald" />
+      </div>
+
+      {/* Table */}
       {topicsLoading && topics.length === 0 ? (
         <div className="flex items-center justify-center h-32">
           <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
@@ -115,8 +127,9 @@ export function TopicsView() {
               type="text"
               value={createForm.name}
               onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
-              className="w-full mt-1 bg-slate-800/80 rounded-xl px-3 py-2 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500/50"
+              className="w-full mt-1.5 bg-slate-800/80 rounded-xl px-3.5 py-2.5 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500/50"
               placeholder="my-topic"
+              autoFocus
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -126,7 +139,7 @@ export function TopicsView() {
                 type="number"
                 value={createForm.partitions}
                 onChange={(e) => setCreateForm({ ...createForm, partitions: e.target.value })}
-                className="w-full mt-1 bg-slate-800/80 rounded-xl px-3 py-2 border border-slate-700/50 text-sm text-white focus:outline-none focus:border-indigo-500/50"
+                className="w-full mt-1.5 bg-slate-800/80 rounded-xl px-3.5 py-2.5 border border-slate-700/50 text-sm text-white focus:outline-none focus:border-indigo-500/50"
                 min="1"
               />
             </div>
@@ -136,24 +149,14 @@ export function TopicsView() {
                 type="number"
                 value={createForm.replicationFactor}
                 onChange={(e) => setCreateForm({ ...createForm, replicationFactor: e.target.value })}
-                className="w-full mt-1 bg-slate-800/80 rounded-xl px-3 py-2 border border-slate-700/50 text-sm text-white focus:outline-none focus:border-indigo-500/50"
+                className="w-full mt-1.5 bg-slate-800/80 rounded-xl px-3.5 py-2.5 border border-slate-700/50 text-sm text-white focus:outline-none focus:border-indigo-500/50"
                 min="1"
               />
             </div>
           </div>
           <div className="flex justify-end gap-2 pt-2">
-            <button
-              onClick={() => { setShowCreate(false); setError(null); }}
-              className="px-4 py-2 rounded-xl text-sm font-medium bg-slate-800 border border-slate-700/50 text-slate-300 hover:bg-slate-700 transition-colors cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleCreate}
-              className="px-4 py-2 rounded-xl text-sm font-medium bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 hover:bg-indigo-500/30 transition-colors cursor-pointer"
-            >
-              Create
-            </button>
+            <button onClick={() => { setShowCreate(false); setError(null); }} className="px-4 py-2 rounded-xl text-sm font-medium bg-slate-800 border border-slate-700/50 text-slate-300 hover:bg-slate-700 transition-colors cursor-pointer">Cancel</button>
+            <button onClick={handleCreate} className="px-4 py-2 rounded-xl text-sm font-medium bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 hover:bg-indigo-500/30 transition-colors cursor-pointer">Create</button>
           </div>
         </div>
       </Modal>
@@ -163,24 +166,30 @@ export function TopicsView() {
         <div className="space-y-4">
           {error && <div className="p-3 rounded-xl bg-red-950/50 border border-red-500/30 text-red-300 text-sm">{error}</div>}
           <p className="text-sm text-slate-300">
-            Are you sure you want to delete topic <span className="font-mono text-indigo-300">{showDelete}</span>? This action cannot be undone.
+            Are you sure you want to delete topic <span className="font-mono text-indigo-300 font-medium">{showDelete}</span>? This action cannot be undone.
           </p>
           <div className="flex justify-end gap-2 pt-2">
-            <button
-              onClick={() => { setShowDelete(null); setError(null); }}
-              className="px-4 py-2 rounded-xl text-sm font-medium bg-slate-800 border border-slate-700/50 text-slate-300 hover:bg-slate-700 transition-colors cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleDelete}
-              className="px-4 py-2 rounded-xl text-sm font-medium bg-red-500/20 border border-red-500/40 text-red-300 hover:bg-red-500/30 transition-colors cursor-pointer"
-            >
-              Delete
-            </button>
+            <button onClick={() => { setShowDelete(null); setError(null); }} className="px-4 py-2 rounded-xl text-sm font-medium bg-slate-800 border border-slate-700/50 text-slate-300 hover:bg-slate-700 transition-colors cursor-pointer">Cancel</button>
+            <button onClick={handleDelete} className="px-4 py-2 rounded-xl text-sm font-medium bg-red-500/20 border border-red-500/40 text-red-300 hover:bg-red-500/30 transition-colors cursor-pointer">Delete</button>
           </div>
         </div>
       </Modal>
+    </div>
+  );
+}
+
+function SummaryCard({ label, value, color }: { label: string; value: string; color: string }) {
+  const colorMap: Record<string, string> = {
+    indigo: "border-indigo-500/20 from-indigo-500/[0.06]",
+    amber: "border-amber-500/20 from-amber-500/[0.06]",
+    emerald: "border-emerald-500/20 from-emerald-500/[0.06]",
+    cyan: "border-cyan-500/20 from-cyan-500/[0.06]",
+    slate: "border-slate-700/30 from-slate-500/[0.04]",
+  };
+  return (
+    <div className={`rounded-2xl border bg-gradient-to-br ${colorMap[color] || colorMap.slate} to-transparent px-4 py-3`}>
+      <div className="text-[10px] uppercase tracking-wider text-slate-400 font-medium">{label}</div>
+      <div className="text-lg font-bold text-white mt-0.5 tabular-nums">{value}</div>
     </div>
   );
 }

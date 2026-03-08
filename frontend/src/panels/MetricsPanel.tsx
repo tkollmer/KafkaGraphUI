@@ -10,15 +10,20 @@ export function MetricsPanel({ nodeId, onClose, onInspect }: Props) {
   const node = useGraphStore((s) => s.nodes.find((n) => n.id === nodeId));
   const edges = useGraphStore((s) => s.edges.filter((e) => e.source === nodeId || e.target === nodeId));
 
-  if (!node) return null;
+  if (!node || !node.data) return null;
 
-  const d = node.data as Record<string, unknown>;
+  let d: Record<string, unknown>;
+  try {
+    d = node.data as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+
   const isTopic = node.type === "topicNode";
   const isService = node.type === "serviceNode";
   const isConsumer = node.type === "consumerNode";
   const isProducer = node.type === "producerNode";
 
-  const typeColor = isTopic ? "indigo" : isService ? "cyan" : isConsumer ? "amber" : "emerald";
   const typeLabel = isTopic ? "Topic" : isService ? "Service" : isConsumer ? "Consumer Group" : "Producer";
 
   const colorClasses: Record<string, string> = {
@@ -27,6 +32,7 @@ export function MetricsPanel({ nodeId, onClose, onInspect }: Props) {
     amber: "from-amber-500/20 border-amber-500/30",
     emerald: "from-emerald-500/20 border-emerald-500/30",
   };
+  const typeColor = isTopic ? "indigo" : isService ? "cyan" : isConsumer ? "amber" : "emerald";
 
   return (
     <div className="absolute left-4 bottom-4 w-[360px] z-50">
@@ -34,11 +40,13 @@ export function MetricsPanel({ nodeId, onClose, onInspect }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-slate-700/30">
           <div className="flex items-center gap-2.5">
-            <div className={`text-[10px] uppercase tracking-wider font-semibold text-${typeColor}-400`}>
+            <div className={`text-[10px] uppercase tracking-wider font-semibold ${
+              isTopic ? "text-indigo-400" : isService ? "text-cyan-400" : isConsumer ? "text-amber-400" : "text-emerald-400"
+            }`}>
               {typeLabel}
             </div>
           </div>
-          <button onClick={onClose} className="w-6 h-6 rounded-md flex items-center justify-center text-slate-500 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer">
+          <button onClick={(e) => { e.stopPropagation(); e.preventDefault(); onClose(); }} className="w-6 h-6 rounded-md flex items-center justify-center text-slate-500 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer">
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path d="M6 18L18 6M6 6l12 12" strokeLinecap="round" />
             </svg>
@@ -57,16 +65,20 @@ export function MetricsPanel({ nodeId, onClose, onInspect }: Props) {
           {isTopic && (
             <>
               <MetricsGrid>
-                <MetricCell label="Partitions" value={String(d.partitions)} />
-                <MetricCell label="Messages/sec" value={`${d.msgPerSec}`} accent={Number(d.msgPerSec) > 0} />
-                <MetricCell label="Total" value={fmt(Number(d.totalMessages))} />
+                <MetricCell label="Partitions" value={String(d.partitions ?? 0)} />
+                <MetricCell label="Messages/sec" value={`${d.msgPerSec ?? 0}`} accent={Number(d.msgPerSec || 0) > 0} />
+                <MetricCell label="Total" value={fmt(Number(d.totalMessages || 0))} />
                 <MetricCell label="Consumers" value={String(edges.filter((e) => e.source === nodeId).length)} />
               </MetricsGrid>
 
               {/* Inspect messages button */}
-              {onInspect && (
+              {onInspect && d.label && (
                 <button
-                  onClick={() => onInspect(String(d.label))}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    onInspect(String(d.label));
+                  }}
                   className="w-full py-2 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 text-xs font-medium hover:bg-indigo-500/25 transition-colors cursor-pointer"
                 >
                   Inspect Messages
@@ -78,8 +90,8 @@ export function MetricsPanel({ nodeId, onClose, onInspect }: Props) {
           {(isService || isConsumer) && (
             <>
               <MetricsGrid>
-                <MetricCell label="Members" value={String(d.members)} />
-                <MetricCell label="Total Lag" value={fmt(Number(d.totalLag))} warn={Boolean(d.lagWarning)} />
+                <MetricCell label="Members" value={String(d.members ?? 0)} />
+                <MetricCell label="Total Lag" value={fmt(Number(d.totalLag || 0))} warn={Boolean(d.lagWarning)} />
                 {isService && (
                   <>
                     <MetricCell label="Consumes" value={String((d.consumes as string[])?.length || 0)} />
@@ -89,35 +101,41 @@ export function MetricsPanel({ nodeId, onClose, onInspect }: Props) {
               </MetricsGrid>
 
               {/* Per-partition lag */}
-              {d.perPartitionLag && typeof d.perPartitionLag === "object" && Object.keys(d.perPartitionLag as object).length > 0 && (
-                <div>
-                  <div className="text-[10px] uppercase tracking-wider text-slate-500 font-medium mb-1.5">Per-partition lag</div>
-                  <div className="max-h-28 overflow-y-auto rounded-lg bg-slate-900/50 border border-slate-800/50">
-                    {Object.entries(d.perPartitionLag as Record<string, number>).map(([k, v]) => (
-                      <div key={k} className="flex justify-between px-3 py-1 border-b border-slate-800/30 last:border-0">
-                        <span className="text-[10px] text-slate-400 truncate mr-2">{k}</span>
-                        <span className={`text-[10px] font-mono font-bold ${v > 1000 ? "text-red-400" : v > 0 ? "text-amber-400" : "text-green-400"}`}>
-                          {v}
-                        </span>
+              {d.perPartitionLag && typeof d.perPartitionLag === "object" && !Array.isArray(d.perPartitionLag) && (() => {
+                try {
+                  const entries = Object.entries(d.perPartitionLag as Record<string, number>);
+                  if (entries.length === 0) return null;
+                  return (
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wider text-slate-500 font-medium mb-1.5">Per-partition lag</div>
+                      <div className="max-h-28 overflow-y-auto rounded-lg bg-slate-900/50 border border-slate-800/50">
+                        {entries.map(([k, v]) => (
+                          <div key={k} className="flex justify-between px-3 py-1 border-b border-slate-800/30 last:border-0">
+                            <span className="text-[10px] text-slate-400 truncate mr-2">{k}</span>
+                            <span className={`text-[10px] font-mono font-bold ${Number(v) > 1000 ? "text-red-400" : Number(v) > 0 ? "text-amber-400" : "text-green-400"}`}>
+                              {v}
+                            </span>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+                    </div>
+                  );
+                } catch { return null; }
+              })()}
 
               {/* Connected topics */}
               {isService && (
                 <div>
                   <div className="text-[10px] uppercase tracking-wider text-slate-500 font-medium mb-1.5">Data flow</div>
                   <div className="flex flex-wrap gap-1">
-                    {((d.consumes as string[]) || []).map((t) => (
+                    {(Array.isArray(d.consumes) ? d.consumes : []).map((t) => (
                       <span key={`c-${t}`} className="text-[9px] bg-indigo-500/15 text-indigo-300 rounded-md px-2 py-0.5 border border-indigo-500/20">
-                        &#x2190; {t}
+                        &#x2190; {String(t)}
                       </span>
                     ))}
-                    {((d.produces as string[]) || []).map((t) => (
+                    {(Array.isArray(d.produces) ? d.produces : []).map((t) => (
                       <span key={`p-${t}`} className="text-[9px] bg-emerald-500/15 text-emerald-300 rounded-md px-2 py-0.5 border border-emerald-500/20">
-                        &#x2192; {t}
+                        &#x2192; {String(t)}
                       </span>
                     ))}
                   </div>

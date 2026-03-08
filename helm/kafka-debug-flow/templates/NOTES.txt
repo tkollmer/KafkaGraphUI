@@ -1,0 +1,17 @@
+Kafka Debug Flow has been deployed!
+
+{{- if .Values.ingress.enabled }}
+
+Access the UI at:
+{{- range .Values.ingress.hosts }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+{{- end }}
+
+{{- else }}
+
+Get the application URL by running:
+  export POD_NAME=$(kubectl get pods --namespace {{ .Release.Namespace }} -l "app.kubernetes.io/name={{ include "kafka-debug-flow.name" . }},app.kubernetes.io/instance={{ .Release.Name }}" -o jsonpath="{.items[0].metadata.name}")
+  kubectl port-forward $POD_NAME 8080:8080
+  open http://localhost:8080
+
+{{- end }}

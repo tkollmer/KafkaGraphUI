@@ -12,8 +12,6 @@ export function Toolbar({ onAutoLayout, onFitView }: Props) {
   const setSearchQuery = useGraphStore((s) => s.setSearchQuery);
   const hideSystemTopics = useGraphStore((s) => s.hideSystemTopics);
   const setHideSystemTopics = useGraphStore((s) => s.setHideSystemTopics);
-  const darkMode = useGraphStore((s) => s.darkMode);
-  const setDarkMode = useGraphStore((s) => s.setDarkMode);
   const nodes = useGraphStore((s) => s.nodes);
 
   const { activeView } = useNavigationStore();
@@ -83,10 +81,6 @@ export function Toolbar({ onAutoLayout, onFitView }: Props) {
             <ToolbarBtn onClick={onFitView} label="Fit" />
           </>
         )}
-        <ToolbarBtn
-          onClick={() => setDarkMode(!darkMode)}
-          label={darkMode ? "Light" : "Dark"}
-        />
       </div>
     </div>
   );

@@ -62,50 +62,55 @@ export function DataTable<T extends Record<string, unknown>>({
   };
 
   return (
-    <div className="flex flex-col gap-3">
-      {/* Search */}
-      <div className="relative max-w-xs">
-        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <circle cx="11" cy="11" r="8" />
-          <path d="m21 21-4.35-4.35" strokeLinecap="round" />
-        </svg>
-        <input
-          type="text"
-          placeholder={searchPlaceholder}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full bg-slate-800/80 rounded-xl pl-9 pr-3 py-2 border border-slate-700/50 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 transition-all"
-        />
+    <div className="flex flex-col gap-4">
+      {/* Search bar */}
+      <div className="flex items-center gap-3">
+        <div className="relative flex-1 max-w-sm">
+          <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <circle cx="11" cy="11" r="8" />
+            <path d="m21 21-4.35-4.35" strokeLinecap="round" />
+          </svg>
+          <input
+            type="text"
+            placeholder={searchPlaceholder}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full bg-slate-900/60 rounded-xl pl-10 pr-3 py-2.5 border border-slate-700/40 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 transition-all"
+          />
+        </div>
+        <span className="text-xs text-slate-500 tabular-nums">
+          {sorted.length}{filtered.length < data.length ? ` of ${data.length}` : ""} {data.length === 1 ? "row" : "rows"}
+        </span>
       </div>
 
       {/* Table */}
-      <div className="rounded-2xl border border-slate-700/50 overflow-hidden">
+      <div className="rounded-2xl border border-slate-700/40 bg-slate-900/40 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="bg-slate-800/60">
+              <tr className="border-b border-slate-700/40">
                 {columns.map((col) => (
                   <th
                     key={col.key}
-                    className={`px-4 py-3 text-left text-[10px] uppercase tracking-wider font-medium text-slate-400 ${
-                      col.sortable !== false ? "cursor-pointer hover:text-slate-200 select-none" : ""
+                    className={`px-5 py-3.5 text-left text-[10px] uppercase tracking-wider font-semibold text-slate-400 ${
+                      col.sortable !== false ? "cursor-pointer hover:text-slate-200 select-none transition-colors" : ""
                     } ${col.className || ""}`}
                     onClick={() => col.sortable !== false && handleSort(col.key)}
                   >
-                    <span className="flex items-center gap-1">
+                    <span className="flex items-center gap-1.5">
                       {col.label}
                       {sortKey === col.key && (
-                        <span className="text-indigo-400">{sortDir === "asc" ? "\u2191" : "\u2193"}</span>
+                        <span className="text-indigo-400 text-xs">{sortDir === "asc" ? "\u2191" : "\u2193"}</span>
                       )}
                     </span>
                   </th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/50">
+            <tbody>
               {sorted.length === 0 ? (
                 <tr>
-                  <td colSpan={columns.length} className="px-4 py-8 text-center text-sm text-slate-500">
+                  <td colSpan={columns.length} className="px-5 py-12 text-center text-sm text-slate-500">
                     {emptyMessage}
                   </td>
                 </tr>
@@ -113,15 +118,15 @@ export function DataTable<T extends Record<string, unknown>>({
                 sorted.map((row, i) => (
                   <tr
                     key={i}
-                    className={`transition-colors ${
+                    className={`border-b border-slate-800/30 last:border-0 transition-colors ${
                       onRowClick
-                        ? "cursor-pointer hover:bg-slate-800/40"
+                        ? "cursor-pointer hover:bg-indigo-500/[0.04]"
                         : ""
-                    }`}
+                    } ${i % 2 === 1 ? "bg-slate-800/[0.08]" : ""}`}
                     onClick={() => onRowClick?.(row)}
                   >
                     {columns.map((col) => (
-                      <td key={col.key} className={`px-4 py-3 text-sm text-slate-300 ${col.className || ""}`}>
+                      <td key={col.key} className={`px-5 py-3.5 text-sm text-slate-300 ${col.className || ""}`}>
                         {col.render ? col.render(row) : String(row[col.key] ?? "")}
                       </td>
                     ))}
@@ -131,10 +136,6 @@ export function DataTable<T extends Record<string, unknown>>({
             </tbody>
           </table>
         </div>
-      </div>
-
-      <div className="text-[10px] text-slate-500">
-        {sorted.length} of {data.length} {data.length === 1 ? "row" : "rows"}
       </div>
     </div>
   );

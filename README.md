@@ -2,8 +2,9 @@
 
 A real-time Kafka pipeline visualizer and management UI. See your entire event-driven architecture as a live, interactive graph — topics, services, consumer groups, and the data flowing between them.
 
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Docker](https://img.shields.io/badge/docker-ready-blue.svg)
+[![CI](https://github.com/YOUR_USERNAME/kafka-debug-flow/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_USERNAME/kafka-debug-flow/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Docker](https://img.shields.io/badge/docker-ghcr.io-blue.svg)](https://github.com/YOUR_USERNAME/kafka-debug-flow/pkgs/container/kafka-debug-flow)
 
 ## Features
 
@@ -59,6 +60,35 @@ open http://localhost:8899
 ```
 
 The demo starts a Redpanda broker, 5 example microservices (order, payment, notification, analytics, inventory), and the UI.
+
+## Kubernetes / Helm
+
+Deploy to Kubernetes using the included Helm chart:
+
+```bash
+helm install kafka-debug-flow ./helm/kafka-debug-flow \
+  --set env.KAFKA_BOOTSTRAP_SERVERS="my-kafka:9092"
+```
+
+With SASL authentication, create a secret first then reference it:
+
+```bash
+kubectl create secret generic kafka-credentials \
+  --from-literal=KAFKA_SASL_USERNAME=admin \
+  --from-literal=KAFKA_SASL_PASSWORD=secret \
+  --from-literal=UI_USERNAME=admin \
+  --from-literal=UI_PASSWORD=changeme
+
+helm install kafka-debug-flow ./helm/kafka-debug-flow \
+  --set env.KAFKA_BOOTSTRAP_SERVERS="my-kafka:9092" \
+  --set existingSecret=kafka-credentials \
+  --set ingress.enabled=true \
+  --set ingress.hosts[0].host=kafka.example.com \
+  --set ingress.hosts[0].paths[0].path=/ \
+  --set ingress.hosts[0].paths[0].pathType=Prefix
+```
+
+See [`helm/kafka-debug-flow/values.yaml`](helm/kafka-debug-flow/values.yaml) for all configurable options.
 
 ## Configuration
 
@@ -122,6 +152,13 @@ npm install
 VITE_WS_URL=ws://localhost:8080 npm run dev
 ```
 
+**Run tests:**
+
+```bash
+cd backend && python -m pytest tests/ -v
+cd frontend && npx tsc --noEmit
+```
+
 **Build Docker image:**
 
 ```bash
@@ -152,6 +189,10 @@ docker build -t kafka-debug-flow .
 - **Frontend:** React 19, ReactFlow, Tailwind CSS 4, Zustand, Dagre, TypeScript
 - **Backend:** Python 3.12, FastAPI, kafka-python-ng, uvicorn
 - **Packaging:** Multi-stage Docker build, single container
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
 
 ## License
 

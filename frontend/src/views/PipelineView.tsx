@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from "react";
+import { Component, useCallback, useEffect, useMemo, type ReactNode } from "react";
 import {
   ReactFlow,
   Background,
@@ -23,6 +23,46 @@ import { ServiceNode } from "../nodes/ServiceNode";
 import { PipelineEdge } from "../edges/PipelineEdge";
 import { MetricsPanel } from "../panels/MetricsPanel";
 import { MessageInspector } from "../panels/MessageInspector";
+
+/** Inner error boundary for panels — prevents panel errors from crashing the graph */
+class PanelErrorBoundary extends Component<
+  { children: ReactNode; fallback?: ReactNode },
+  { hasError: boolean; error: string }
+> {
+  state = { hasError: false, error: "" };
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error: error.message };
+  }
+
+  componentDidCatch(error: Error) {
+    console.error("[PanelErrorBoundary]", error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="absolute left-4 bottom-4 w-[360px] z-50">
+          <div className="rounded-2xl border border-red-500/30 bg-red-950/50 backdrop-blur-xl p-4">
+            <div className="text-red-400 text-sm font-medium mb-2">Panel error</div>
+            <div className="text-slate-400 text-xs mb-3">{this.state.error}</div>
+            <button
+              onClick={() => {
+                this.setState({ hasError: false, error: "" });
+                useGraphStore.getState().setSelectedNode(null);
+                useGraphStore.getState().setInspectorTopic(null);
+              }}
+              className="px-3 py-1.5 rounded-lg text-xs bg-slate-800 border border-slate-700/50 text-slate-300 hover:bg-slate-700 cursor-pointer"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const nodeTypes = {
   topicNode: TopicNode,
@@ -186,39 +226,54 @@ export function PipelineView() {
 
   // Node click: select node + highlight path. Do NOT auto-open MessageInspector.
   const handleNodeClick = useCallback(
-    (_: React.MouseEvent, node: { id: string }) => {
-      useGraphStore.getState().setSelectedNode(node.id);
-      // Don't auto-open inspector — user can click "Inspect Messages" in MetricsPanel
-      useGraphStore.getState().setInspectorTopic(null);
+    (event: React.MouseEvent, node: { id: string }) => {
+      try {
+        // Prevent any event propagation or default browser behavior
+        event.stopPropagation();
+        event.preventDefault();
+        useGraphStore.getState().setSelectedNode(node.id);
+        useGraphStore.getState().setInspectorTopic(null);
+      } catch (err) {
+        console.error("[PipelineView] handleNodeClick error:", err);
+      }
     },
     []
   );
 
   const handleEdgeClick = useCallback(
-    (_: React.MouseEvent, edge: Edge) => {
-      const state = useGraphStore.getState();
-      const sourceNode = state.nodes.find((n) => n.id === edge.source);
-      const targetNode = state.nodes.find((n) => n.id === edge.target);
+    (event: React.MouseEvent, edge: Edge) => {
+      try {
+        event.stopPropagation();
+        event.preventDefault();
+        const state = useGraphStore.getState();
+        const sourceNode = state.nodes.find((n) => n.id === edge.source);
+        const targetNode = state.nodes.find((n) => n.id === edge.target);
 
-      // Find the topic on either end
-      let topicLabel: string | null = null;
-      if (sourceNode?.type === "topicNode") {
-        topicLabel = String(sourceNode.data?.label || "");
-      } else if (targetNode?.type === "topicNode") {
-        topicLabel = String(targetNode.data?.label || "");
-      }
+        let topicLabel: string | null = null;
+        if (sourceNode?.type === "topicNode") {
+          topicLabel = String(sourceNode.data?.label || "");
+        } else if (targetNode?.type === "topicNode") {
+          topicLabel = String(targetNode.data?.label || "");
+        }
 
-      if (topicLabel) {
-        state.setInspectorTopic(topicLabel);
+        if (topicLabel) {
+          state.setInspectorTopic(topicLabel);
+        }
+        state.setSelectedNode(null);
+      } catch (err) {
+        console.error("[PipelineView] handleEdgeClick error:", err);
       }
-      state.setSelectedNode(null);
     },
     []
   );
 
   const handlePaneClick = useCallback(() => {
-    useGraphStore.getState().setSelectedNode(null);
-    useGraphStore.getState().setInspectorTopic(null);
+    try {
+      useGraphStore.getState().setSelectedNode(null);
+      useGraphStore.getState().setInspectorTopic(null);
+    } catch (err) {
+      console.error("[PipelineView] handlePaneClick error:", err);
+    }
   }, []);
 
   return (
@@ -265,23 +320,27 @@ export function PipelineView() {
         )}
       </ReactFlow>
 
-      {selectedNode && (
-        <MetricsPanel
-          nodeId={selectedNode}
-          onClose={() => {
-            useGraphStore.getState().setSelectedNode(null);
-            useGraphStore.getState().setInspectorTopic(null);
-          }}
-          onInspect={(topic) => useGraphStore.getState().setInspectorTopic(topic)}
-        />
-      )}
+      <PanelErrorBoundary>
+        {selectedNode && (
+          <MetricsPanel
+            nodeId={selectedNode}
+            onClose={() => {
+              useGraphStore.getState().setSelectedNode(null);
+              useGraphStore.getState().setInspectorTopic(null);
+            }}
+            onInspect={(topic) => useGraphStore.getState().setInspectorTopic(topic)}
+          />
+        )}
+      </PanelErrorBoundary>
 
-      {inspectorTopic && (
-        <MessageInspector
-          topic={inspectorTopic}
-          onClose={() => useGraphStore.getState().setInspectorTopic(null)}
-        />
-      )}
+      <PanelErrorBoundary>
+        {inspectorTopic && (
+          <MessageInspector
+            topic={inspectorTopic}
+            onClose={() => useGraphStore.getState().setInspectorTopic(null)}
+          />
+        )}
+      </PanelErrorBoundary>
     </div>
   );
 }

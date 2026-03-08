@@ -1,0 +1,53 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/YOUR_USERNAME/kafka-debug-flow
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8080
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: kafka-debug-flow.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+env:
+  KAFKA_BOOTSTRAP_SERVERS: "localhost:9092"
+  POLL_INTERVAL_MS: "2000"
+  SAMPLING_ENABLED: "false"
+  MAX_SAMPLE_MESSAGES: "20"
+  LAG_WARN_THRESHOLD: "1000"
+  SHOW_PRODUCERS: "false"
+  LOG_LEVEL: "INFO"
+
+# Name of an existing K8s Secret containing sensitive env vars
+# Expected keys: KAFKA_SASL_USERNAME, KAFKA_SASL_PASSWORD, UI_USERNAME, UI_PASSWORD
+existingSecret: ""
+
+resources: {}
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # limits:
+  #   cpu: 500m
+  #   memory: 512Mi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}

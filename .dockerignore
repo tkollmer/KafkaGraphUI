@@ -4,8 +4,9 @@ frontend/dist
 __pycache__
 *.pyc
 .git
+.github
 .env
 *.md
-tests/
-helm/
-examples/
+backend/tests/
+.claude/
+.pytest_cache
