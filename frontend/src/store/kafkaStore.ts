@@ -68,17 +68,30 @@ interface KafkaState {
   topicsLoading: boolean;
   selectedTopic: TopicDetail | null;
   topicDetailLoading: boolean;
+  topicsLastFetched: number | null;
 
   // Consumer groups
   consumerGroups: ConsumerGroupSummary[];
   consumerGroupsLoading: boolean;
   selectedConsumerGroup: ConsumerGroupDetail | null;
   consumerGroupDetailLoading: boolean;
+  consumerGroupsLastFetched: number | null;
 
   // Brokers
   brokers: BrokerInfo[];
   brokersLoading: boolean;
   clusterInfo: ClusterInfo | null;
+  brokersLastFetched: number | null;
+
+  // Cluster health
+  clusterHealth: {
+    totalPartitions: number;
+    underReplicatedCount: number;
+    underReplicated: { topic: string; partition: number; replicas: number; isr: number }[];
+    offlinePartitionCount: number;
+    offlinePartitions: { topic: string; partition: number }[];
+    leaderDistribution: Record<string, number>;
+  } | null;
 
   // Actions
   fetchTopics: () => Promise<void>;
@@ -89,10 +102,15 @@ interface KafkaState {
 
   fetchConsumerGroups: () => Promise<void>;
   fetchConsumerGroupDetail: (groupId: string) => Promise<void>;
-  resetOffsets: (groupId: string, strategy: string, topic?: string) => Promise<{ success: boolean; error?: string }>;
+  resetOffsets: (groupId: string, strategy: string, topic?: string, timestamp?: number, offset?: number) => Promise<{ success: boolean; error?: string }>;
+  deleteConsumerGroup: (groupId: string) => Promise<{ success: boolean; error?: string }>;
+
+  updateTopicConfig: (topic: string, configs: Record<string, string>) => Promise<{ success: boolean; error?: string }>;
+  addTopicPartitions: (topic: string, totalPartitions: number) => Promise<{ success: boolean; error?: string }>;
 
   fetchBrokers: () => Promise<void>;
   fetchClusterInfo: () => Promise<void>;
+  fetchClusterHealth: () => Promise<void>;
 
   clearSelectedTopic: () => void;
   clearSelectedConsumerGroup: () => void;
@@ -103,21 +121,25 @@ export const useKafkaStore = create<KafkaState>((set) => ({
   topicsLoading: false,
   selectedTopic: null,
   topicDetailLoading: false,
+  topicsLastFetched: null,
 
   consumerGroups: [],
   consumerGroupsLoading: false,
   selectedConsumerGroup: null,
   consumerGroupDetailLoading: false,
+  consumerGroupsLastFetched: null,
 
   brokers: [],
   brokersLoading: false,
   clusterInfo: null,
+  brokersLastFetched: null,
+  clusterHealth: null,
 
   fetchTopics: async () => {
     set({ topicsLoading: true });
     try {
       const data = await apiFetch<TopicSummary[]>("/api/topics");
-      set({ topics: data });
+      set({ topics: data, topicsLastFetched: Date.now() });
     } catch {
       set({ topics: [] });
     } finally {
@@ -174,7 +196,7 @@ export const useKafkaStore = create<KafkaState>((set) => ({
     set({ consumerGroupsLoading: true });
     try {
       const data = await apiFetch<ConsumerGroupSummary[]>("/api/consumer-groups");
-      set({ consumerGroups: data });
+      set({ consumerGroups: data, consumerGroupsLastFetched: Date.now() });
     } catch {
       set({ consumerGroups: [] });
     } finally {
@@ -194,11 +216,47 @@ export const useKafkaStore = create<KafkaState>((set) => ({
     }
   },
 
-  resetOffsets: async (groupId, strategy, topic) => {
+  resetOffsets: async (groupId, strategy, topic, timestamp, offset) => {
     try {
+      const body: Record<string, unknown> = { strategy, topic };
+      if (timestamp !== undefined) body.timestamp = timestamp;
+      if (offset !== undefined) body.offset = offset;
       const data = await apiFetch<{ success: boolean }>(`/api/consumer-groups/${encodeURIComponent(groupId)}/reset-offsets`, {
         method: "POST",
-        body: JSON.stringify({ strategy, topic }),
+        body: JSON.stringify(body),
+      });
+      return { success: data.success };
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : "Unknown error" };
+    }
+  },
+
+  deleteConsumerGroup: async (groupId) => {
+    try {
+      await apiFetch(`/api/consumer-groups/${encodeURIComponent(groupId)}`, { method: "DELETE" });
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : "Unknown error" };
+    }
+  },
+
+  updateTopicConfig: async (topic, configs) => {
+    try {
+      const data = await apiFetch<{ success: boolean }>(`/api/topics/${encodeURIComponent(topic)}/config`, {
+        method: "PUT",
+        body: JSON.stringify({ configs }),
+      });
+      return { success: data.success };
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : "Unknown error" };
+    }
+  },
+
+  addTopicPartitions: async (topic, totalPartitions) => {
+    try {
+      const data = await apiFetch<{ success: boolean }>(`/api/topics/${encodeURIComponent(topic)}/partitions`, {
+        method: "POST",
+        body: JSON.stringify({ totalPartitions }),
       });
       return { success: data.success };
     } catch (e) {
@@ -210,7 +268,7 @@ export const useKafkaStore = create<KafkaState>((set) => ({
     set({ brokersLoading: true });
     try {
       const data = await apiFetch<BrokerInfo[]>("/api/brokers");
-      set({ brokers: data });
+      set({ brokers: data, brokersLastFetched: Date.now() });
     } catch {
       set({ brokers: [] });
     } finally {
@@ -224,6 +282,15 @@ export const useKafkaStore = create<KafkaState>((set) => ({
       set({ clusterInfo: data });
     } catch {
       set({ clusterInfo: null });
+    }
+  },
+
+  fetchClusterHealth: async () => {
+    try {
+      const data = await apiFetch<KafkaState["clusterHealth"]>("/api/cluster/health");
+      set({ clusterHealth: data });
+    } catch {
+      set({ clusterHealth: null });
     }
   },
 

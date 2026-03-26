@@ -46,14 +46,21 @@ interface GraphState {
   config: GraphConfig;
   connectionStatus: "connected" | "reconnecting" | "disconnected";
   selectedNode: string | null;
+  selectedEdge: string | null;
   inspectorTopic: string | null;
   searchQuery: string;
   hideSystemTopics: boolean;
+  /** Node type visibility filters */
+  visibleNodeTypes: Set<string>;
+  /** Total message rate across all topics - last 30 samples */
+  rateHistory: number[];
   setConnectionStatus: (s: GraphState["connectionStatus"]) => void;
   setSelectedNode: (id: string | null) => void;
+  setSelectedEdge: (id: string | null) => void;
   setInspectorTopic: (t: string | null) => void;
   setSearchQuery: (q: string) => void;
   setHideSystemTopics: (v: boolean) => void;
+  toggleNodeTypeVisibility: (nodeType: string) => void;
   setConfig: (c: Partial<GraphConfig>) => void;
   applySnapshot: (msg: WsMessage) => void;
   applyDiff: (msg: WsMessage) => void;
@@ -70,15 +77,16 @@ function mapNodeType(t: string): string {
 }
 
 function wsNodeToRFNode(n: WsNodeChange, existingNodes?: Node[], existingEdges?: Edge[]): Node {
-  // Smart positioning: find a connected node and offset from it
   let position = { x: 0, y: 0 };
   if (existingNodes && existingNodes.length > 0 && existingEdges) {
+    // Use Map for O(1) lookups instead of .find()
+    const nodeMap = new Map(existingNodes.map((x) => [x.id, x]));
     const connectedEdge = existingEdges.find(
       (e) => e.source === n.id || e.target === n.id
     );
     if (connectedEdge) {
       const connectedId = connectedEdge.source === n.id ? connectedEdge.target : connectedEdge.source;
-      const connectedNode = existingNodes.find((x) => x.id === connectedId);
+      const connectedNode = nodeMap.get(connectedId);
       if (connectedNode) {
         position = {
           x: connectedNode.position.x + 300 * (connectedEdge.source === n.id ? -1 : 1),
@@ -118,15 +126,25 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   },
   connectionStatus: "disconnected",
   selectedNode: null,
+  selectedEdge: null,
   inspectorTopic: null,
   searchQuery: "",
   hideSystemTopics: true,
+  visibleNodeTypes: new Set(["topicNode", "consumerNode", "serviceNode", "producerNode"]),
+  rateHistory: [],
 
   setConnectionStatus: (s) => set({ connectionStatus: s }),
-  setSelectedNode: (id) => set({ selectedNode: id }),
+  setSelectedNode: (id) => set({ selectedNode: id, selectedEdge: null }),
+  setSelectedEdge: (id) => set({ selectedEdge: id, selectedNode: null }),
   setInspectorTopic: (t) => set({ inspectorTopic: t }),
   setSearchQuery: (q) => set({ searchQuery: q }),
   setHideSystemTopics: (v) => set({ hideSystemTopics: v }),
+  toggleNodeTypeVisibility: (nodeType) => set((s) => {
+    const next = new Set(s.visibleNodeTypes);
+    if (next.has(nodeType)) next.delete(nodeType);
+    else next.add(nodeType);
+    return { visibleNodeTypes: next };
+  }),
   setConfig: (c) => set((s) => ({ config: { ...s.config, ...c } })),
 
   applySnapshot: (msg) => {
@@ -151,37 +169,65 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
   applyDiff: (msg) => {
     set((state) => {
-      const nodes = [...state.nodes];
-      const edges = [...state.edges];
+      // Use Maps for O(1) lookups — critical for 500+ nodes
+      const nodeMap = new Map(state.nodes.map((n) => [n.id, n]));
+      const edgeMap = new Map(state.edges.map((e) => [e.id, e]));
 
+      // Add new nodes
       for (const n of msg.nodes?.added || []) {
-        if (!nodes.find((x) => x.id === n.id)) {
-          nodes.push(wsNodeToRFNode(n, nodes, edges));
+        if (!nodeMap.has(n.id)) {
+          const rfNode = wsNodeToRFNode(n, state.nodes, state.edges);
+          nodeMap.set(n.id, rfNode);
         }
       }
+
+      // Update existing nodes
       for (const n of msg.nodes?.updated || []) {
-        const idx = nodes.findIndex((x) => x.id === n.id);
-        if (idx >= 0) {
-          nodes[idx] = {
-            ...nodes[idx],
-            data: { ...nodes[idx].data, ...n.data, status: n.status || "ok" },
-          };
+        const existing = nodeMap.get(n.id);
+        if (existing) {
+          nodeMap.set(n.id, {
+            ...existing,
+            data: { ...existing.data, ...n.data, status: n.status || "ok" },
+          });
         }
       }
-      // No longer remove nodes — backend sends "inactive" status updates instead
 
+      // Add new edges
       for (const e of msg.edges?.added || []) {
-        if (!edges.find((x) => x.id === e.id)) edges.push(wsEdgeToRFEdge(e));
-      }
-      for (const e of msg.edges?.updated || []) {
-        const idx = edges.findIndex((x) => x.id === e.id);
-        if (idx >= 0) {
-          edges[idx] = { ...edges[idx], data: { ...edges[idx].data, ...e.data } };
+        if (!edgeMap.has(e.id)) {
+          edgeMap.set(e.id, wsEdgeToRFEdge(e));
         }
       }
-      // No longer remove edges — backend sends inactive edge updates instead
 
-      return { nodes, edges, metrics: { ...state.metrics, ...(msg.metrics || {}) } };
+      // Update existing edges
+      for (const e of msg.edges?.updated || []) {
+        const existing = edgeMap.get(e.id);
+        if (existing) {
+          edgeMap.set(e.id, { ...existing, data: { ...existing.data, ...e.data } });
+        }
+      }
+
+      // Remove nodes
+      for (const id of msg.nodes?.removed || []) {
+        nodeMap.delete(id);
+      }
+
+      // Remove edges
+      for (const id of msg.edges?.removed || []) {
+        edgeMap.delete(id);
+      }
+
+      // Track total msg/sec for rate history
+      const mergedMetrics = { ...state.metrics, ...(msg.metrics || {}) };
+      const totalRate = Object.values(mergedMetrics).reduce((s, m) => s + (m.msgPerSec || 0), 0);
+      const rateHistory = [...state.rateHistory, totalRate].slice(-30);
+
+      return {
+        nodes: [...nodeMap.values()],
+        edges: [...edgeMap.values()],
+        metrics: mergedMetrics,
+        rateHistory,
+      };
     });
   },
 }));

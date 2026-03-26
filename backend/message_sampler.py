@@ -78,6 +78,64 @@ class MessageSampler:
                 except Exception:
                     pass
 
+    def sample_at(self, topic: str, partition: int, offset: int,
+                  limit: int = 50) -> list[dict]:
+        """Fetch messages from a specific partition starting at a given offset."""
+        consumer = None
+        try:
+            cfg = self._build_config()
+            consumer = KafkaConsumer(**cfg)
+            tp = TopicPartition(topic, partition)
+            consumer.assign([tp])
+            consumer.seek(tp, max(0, offset))
+            raw = consumer.poll(timeout_ms=3000, max_records=limit)
+            messages = []
+            for _, records in raw.items():
+                for record in records:
+                    messages.append(self._format_record(record))
+            messages.sort(key=lambda m: m.get("offset", 0))
+            return messages[:limit]
+        except Exception as e:
+            logger.error(f"Failed to seek topic {topic} P{partition}@{offset}: {e}")
+            return []
+        finally:
+            if consumer:
+                try:
+                    consumer.close()
+                except Exception:
+                    pass
+
+    def sample_at_timestamp(self, topic: str, partition: int, timestamp_ms: int,
+                            limit: int = 50) -> list[dict]:
+        """Fetch messages from a specific partition starting at a given timestamp."""
+        consumer = None
+        try:
+            cfg = self._build_config()
+            consumer = KafkaConsumer(**cfg)
+            tp = TopicPartition(topic, partition)
+            consumer.assign([tp])
+            offsets = consumer.offsets_for_times({tp: timestamp_ms})
+            if offsets and offsets.get(tp):
+                consumer.seek(tp, offsets[tp].offset)
+            else:
+                consumer.seek_to_end(tp)
+            raw = consumer.poll(timeout_ms=3000, max_records=limit)
+            messages = []
+            for _, records in raw.items():
+                for record in records:
+                    messages.append(self._format_record(record))
+            messages.sort(key=lambda m: m.get("offset", 0))
+            return messages[:limit]
+        except Exception as e:
+            logger.error(f"Failed to seek topic {topic} P{partition}@ts{timestamp_ms}: {e}")
+            return []
+        finally:
+            if consumer:
+                try:
+                    consumer.close()
+                except Exception:
+                    pass
+
     def _format_record(self, record) -> dict:
         """Format a ConsumerRecord into a JSON-serializable dict."""
         value = self._decode_value(record.value)

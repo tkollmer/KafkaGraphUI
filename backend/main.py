@@ -19,6 +19,8 @@ from kafka_collector import KafkaCollector, ClusterSnapshot
 from graph_state import GraphStateBuilder
 from grouping_engine import GroupingEngine
 from message_sampler import MessageSampler
+from schema_registry import SchemaRegistryClient
+from connect_client import ConnectClient
 from metrics import update_metrics, get_metrics_text, ws_connected_clients
 from kafka_admin import KafkaAdmin
 from api_routes import router as api_router
@@ -66,25 +68,33 @@ start_time = time.time()
 
 
 async def broadcast_diff(snapshot: ClusterSnapshot):
-    """Build graph diff and push to all WS clients."""
+    """Build graph diff and push to all WS clients.
+
+    Optimizations:
+    - JSON serialized once and reused across all clients
+    - Disconnected clients cleaned up in batch after send loop
+    - Overflow message pre-serialized
+    """
     diff = graph_builder.update(snapshot)
     update_metrics(snapshot)
 
     if diff.is_empty():
         return
 
-    msg = json.dumps(diff.to_dict())
+    if not ws_clients:
+        return  # No clients, skip serialization
+
+    msg = json.dumps(diff.to_dict(), separators=(",", ":"))  # compact JSON
 
     disconnected = []
+    overflow_msg = None  # Lazy-init
+
     for client_id, ws in ws_clients.items():
         queue = ws_queues.get(client_id)
         if queue is not None and len(queue) >= config.MAX_WS_QUEUE:
-            # Queue overflow — send overflow notice, will resync
+            if overflow_msg is None:
+                overflow_msg = json.dumps({"type": "queue_overflow", "ts": int(time.time() * 1000)})
             try:
-                overflow_msg = json.dumps({
-                    "type": "queue_overflow",
-                    "ts": int(time.time() * 1000),
-                })
                 await ws.send_text(overflow_msg)
                 queue.clear()
             except Exception:
@@ -118,6 +128,13 @@ async def lifespan(app: FastAPI):
         kafka_admin.connect()
         app.state.kafka_admin = kafka_admin
         app.state.message_sampler = sampler
+        if config.SCHEMA_REGISTRY_URL:
+            auth = (config.SCHEMA_REGISTRY_USER, config.SCHEMA_REGISTRY_PASSWORD) if config.SCHEMA_REGISTRY_USER else None
+            app.state.schema_registry = SchemaRegistryClient(config.SCHEMA_REGISTRY_URL, auth=auth)
+            logger.info(f"Schema Registry configured at {config.SCHEMA_REGISTRY_URL}")
+        if config.CONNECT_URL:
+            app.state.connect_client = ConnectClient(config.CONNECT_URL)
+            logger.info(f"Kafka Connect configured at {config.CONNECT_URL}")
         task = asyncio.create_task(collector.start_polling(callback=broadcast_diff))
         logger.info("Kafka polling started")
         yield
@@ -178,11 +195,26 @@ if config.UI_AUTH_ENABLED:
 
 @app.get("/api/health")
 async def health():
+    snapshot = collector.snapshot
+    total_topics = len(snapshot.topics)
+    total_groups = len(snapshot.consumer_groups)
+    total_lag = sum(g.total_lag for g in snapshot.consumer_groups.values())
+    total_msg_rate = sum(t.msg_per_sec for t in snapshot.topics.values())
+    graph_nodes = len(graph_builder._nodes)
+    graph_edges = len(graph_builder._edges)
+
     return {
         "status": "ok" if collector.connected else "degraded",
         "kafka_connected": collector.connected,
         "uptime": round(time.time() - start_time, 1),
         "ws_clients": len(ws_clients),
+        "topics": total_topics,
+        "consumerGroups": total_groups,
+        "totalLag": total_lag,
+        "totalMsgPerSec": round(total_msg_rate, 1),
+        "graphNodes": graph_nodes,
+        "graphEdges": graph_edges,
+        "pollIntervalMs": config.POLL_INTERVAL_MS,
     }
 
 
@@ -223,6 +255,42 @@ async def update_regex(request: Request):
     config.PRODUCER_GROUP_REGEX = regex
     grouping_engine.pattern = regex
     return {"regex": regex}
+
+
+@app.put("/api/config/sampling")
+async def toggle_sampling(request: Request):
+    body = await request.json()
+    config.SAMPLING_ENABLED = body.get("enabled", False)
+    return {"samplingEnabled": config.SAMPLING_ENABLED}
+
+
+@app.put("/api/config/animations")
+async def toggle_animations(request: Request):
+    body = await request.json()
+    config.ANIMATIONS_ENABLED = body.get("enabled", True)
+    return {"animationsEnabled": config.ANIMATIONS_ENABLED}
+
+
+@app.put("/api/config/lag-threshold")
+async def update_lag_threshold(request: Request):
+    body = await request.json()
+    val = int(body.get("threshold", 1000))
+    if val < 0:
+        raise HTTPException(status_code=400, detail="Threshold must be >= 0")
+    config.LAG_WARN_THRESHOLD = val
+    graph_builder.lag_warn_threshold = val
+    return {"lagWarnThreshold": config.LAG_WARN_THRESHOLD}
+
+
+@app.put("/api/config/poll-interval")
+async def update_poll_interval(request: Request):
+    body = await request.json()
+    val = int(body.get("intervalMs", 2000))
+    if val < 500:
+        raise HTTPException(status_code=400, detail="Poll interval must be >= 500ms")
+    config.POLL_INTERVAL_MS = val
+    collector.poll_interval_ms = val
+    return {"pollIntervalMs": config.POLL_INTERVAL_MS}
 
 
 @app.post("/api/config/preview-grouping")

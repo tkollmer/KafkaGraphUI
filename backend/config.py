@@ -24,6 +24,10 @@ class Config:
         self.KAFKA_SASL_USERNAME = os.getenv("KAFKA_SASL_USERNAME", "")
         self.KAFKA_SASL_PASSWORD = os.getenv("KAFKA_SASL_PASSWORD", "")
         self.KAFKA_SSL_ENABLED = os.getenv("KAFKA_SSL_ENABLED", "false").lower() == "true"
+        self.SCHEMA_REGISTRY_URL = os.getenv("SCHEMA_REGISTRY_URL", "")
+        self.SCHEMA_REGISTRY_USER = os.getenv("SCHEMA_REGISTRY_USER", "")
+        self.SCHEMA_REGISTRY_PASSWORD = os.getenv("SCHEMA_REGISTRY_PASSWORD", "")
+        self.CONNECT_URL = os.getenv("KAFKA_CONNECT_URL", "")
         self.LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
         self.PORT = int(os.getenv("PORT", "8080"))
 

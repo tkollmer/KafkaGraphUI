@@ -235,6 +235,25 @@ class GraphStateBuilder:
                     },
                 )
 
+        # --- Enrich topic nodes with consumer/producer lists ---
+        topic_consumers: dict[str, list[str]] = {}
+        topic_producers: dict[str, list[str]] = {}
+        for eid, edge in new_edges.items():
+            if edge.data.get("type") == "consumes":
+                topic_nid = edge.source
+                service_nid = edge.target
+                svc_label = new_nodes[service_nid].data.get("label", service_nid) if service_nid in new_nodes else service_nid
+                topic_consumers.setdefault(topic_nid, []).append(svc_label)
+            elif edge.data.get("type") == "produces":
+                topic_nid = edge.target
+                service_nid = edge.source
+                svc_label = new_nodes[service_nid].data.get("label", service_nid) if service_nid in new_nodes else service_nid
+                topic_producers.setdefault(topic_nid, []).append(svc_label)
+        for nid, node in new_nodes.items():
+            if node.type == "topic":
+                node.data["consumers"] = topic_consumers.get(nid, [])
+                node.data["producers"] = topic_producers.get(nid, [])
+
         # --- Compute diff ---
         # Mark nodes that disappeared as inactive instead of removing them
         for nid, node in new_nodes.items():
